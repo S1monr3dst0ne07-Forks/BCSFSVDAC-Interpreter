@@ -1,0 +1,13 @@
+# a very basic rainbow screen
+MEM PTR 0         
+VID PTR 0   
+
+WHL VID 1022 EQU 0     
+    VID SET MEM 0  
+    MEM ADD 1   
+    VID MOV 1  
+    
+    REN         
+FIN
+VID SET MEM 0
+REN

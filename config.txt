@@ -1,0 +1,7 @@
+width = 32
+height = 32
+winSize = 600
+mainMemSize = 32767
+registerSize = 8191
+stackSize = 1023
+DefaultFile = 
