@@ -230,6 +230,7 @@ WHL REG 2 LES 8 (while REG 2 is less than 8) ..... FIN
 -----Functions-----
 Functions are laid out in the format DEF [Function name in square brackets] function contents, you must end the function with a RET tag
 Calling a function is FNC [NAME of function in square brackets]
+Nested functions are not supported, this is by design
 DEF [ThisIsAfunction]
 {function contents}
 RET
