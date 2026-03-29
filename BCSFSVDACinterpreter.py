@@ -66,6 +66,7 @@ for name, value in config.items():
 videoSize = width * height
 fileName = DefaultFile
 pixelSize = winSize // max(width, height)
+
 print("---- Loaded configuration: ----")
 print("stackSize =", stackSize)
 print("mainMemSize   =", mainMemSize)
@@ -75,11 +76,13 @@ print("Vid Height =", height)
 print("videoSize =", videoSize)
 print("pixelSize =", pixelSize)
 print("--------------------------------")
+
 #Setup memories
 MEM = [0] * mainMemSize
 REG = [0] * registerSize
 STK = [] 
 VID = [0] * videoSize
+
 #pygame setup
 pygame.init()
 screen = pygame.display.set_mode(
@@ -87,6 +90,7 @@ screen = pygame.display.set_mode(
 )
 pygame.display.set_caption("Video display BCSFSVDAC V1.0")
 clock = pygame.time.Clock()
+
 #variables
 MEMptr = 0
 VIDptr = 0
@@ -103,16 +107,24 @@ InstructionCounter = []
 
 
 #functions
-def render(): #Renders the whole videobuffer with pygame
-    screen.fill((0, 0, 0))
-    #Draw each pixel
+VID_OLD = [0] * videoSize
+def render(): 
+    #Renders parts of video buffer which have changed
+
+    rects = []
     for i in range(width * height):
+        if VID_OLD[i] == VID[i]: continue
+        VID_OLD[i] = VID[i]
+
         x = (i % width) * pixelSize
         y = (i // width) * pixelSize
         v = int(VID[i])
         colour = Findcolour(v)
-        pygame.draw.rect(screen, colour, (int(x), int(y), pixelSize, pixelSize))
-    pygame.display.flip()
+        rect = pygame.Rect(x, y, pixelSize, pixelSize)
+        rects.append(rect)
+        pygame.draw.rect(screen, colour, rect)
+
+    pygame.display.update(rects)
 
 def compare(loopInfo,fromFin):
     global ip
