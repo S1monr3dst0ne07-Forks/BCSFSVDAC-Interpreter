@@ -106,7 +106,7 @@ loop_addrs = []
 VersionNumber = "1.0"
 last_key = 0
 
-functions = []
+functions = {}
 funcExecuteIp = 0
 InstructionCounter = []
 
@@ -125,7 +125,7 @@ def render():
         x = (i % width) * pixelSize
         y = (i // width) * pixelSize
         v = int(VID[i])
-        colour = Findcolour(v)
+        colour = find_colour(v)
         rect = pygame.Rect(x, y, pixelSize, pixelSize)
         rects.append(rect)
         pygame.draw.rect(screen, colour, rect)
@@ -161,7 +161,7 @@ def make_palette(size=width): #Makes the colour palette based on width
     return palette
 
 PALETTE = make_palette(width) #Loads the palette
-def Findcolour(Num): #Finding colours of pixels
+def find_colour(Num): #Finding colours of pixels
     if Num < 0:
         return (0, 0, 0)
     if Num >= len(PALETTE):
@@ -471,65 +471,31 @@ while ip < len(code): #Running the code
             case 'VID': VID[number()] = last_key
         last_key = 0
 
-    """commented out for now, as no example exist to test 
     elif phrase == "DEF":
-        character = code[ip]
-        if character == "[":
-            ip += 1
-            while character != "]":
-                phrase = phrase + code[ip]
-                ip += 1
-                character = code[ip]
-            ip +=1
-            funcName = phrase
-            funcIp = ip
-            funcInfo = {
-                "funcName":funcName,
-                "funcIp":ip
-                }
-            depth = 1
-            while depth > 0 and ip < len(code):
-                if code[ip:ip+3] == "RET":
-                    depth -= 1
-                    ip += 3
-                else:
-                    ip += 1
-            functions.append(funcInfo)
+        functions[word()] = ip
+
+        #the old code included depth checks.
+        # why? the `README.txt` explicitly
+        # states functions to be non-nesting.
+        # guess we'll never know ....
+        while ip < len(code) and word() != 'RET': pass
+
     elif phrase == "FNC":
-        phrase = ""
-        character = code[ip]
-        if character == "[":
-            ip +=1
-            while character != "]":
-                phrase = phrase + code[ip]
-                ip +=1
-                character = code[ip]
-            ip += 1
         funcExecuteIp = ip
-        found = False
-        for func in functions:
-            if func["funcName"] == phrase:
-                ip = func["funcIp"]
-                found = True
-                break
-        if not found:
-            raise Exception(f"Function '{phrase}' not defined")
+        funcName = word()
+
+        if funcName not in functions:
+            error(f"Error: Function '{funcName}' not defined.")
+
+        ip = functions[funcName]
 
     elif phrase == "RET":
         ip = funcExecuteIp
+
     elif phrase == "IPS":
-        phrase = ""
-        while ip < len(code) and code[ip].isdigit():
-            phrase = phrase + code[ip]
-            ip += 1
-        ip = int(phrase)
-    elif phrase == "INS":
-        phrase = ""
-        while ip < len(code) and code[ip].isdigit():
-            phrase = phrase + code[ip]
-            ip += 1
-        ip = int(InstructionCounter[int(phrase)])
-    """
+        ip = number()
+    elif phrase == "INS": # "such a weird instruction" - S1monr3dst0ne07
+        ip = InstructionCounter[number()]
 
     pygame.event.pump()
     if len(InstructionCounter) < 10000:
