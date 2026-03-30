@@ -134,57 +134,38 @@ def render():
 
 
 
-def compare(loopInfo,fromFin):
+def compare(loopInfo):
     global ip
 
+    addr    = loopInfo['address']
+    secAddr = loopInfo['secAddress']
+
     # resolve LEFT
-    if loopInfo["source"] == "MEM":
-        left = MEM[loopInfo["address"]]
-    elif loopInfo["source"] == "REG":
-        left = REG[loopInfo["address"]]
-    elif loopInfo["source"] == "VID":
-        left = VID[loopInfo["address"]]
-    elif loopInfo["source"] == "STK":
-        left = STK[-1]
+    match loopInfo['source']:
+        case 'MEM': left = MEM[addr]
+        case 'REG': left = REG[addr]
+        case 'VID': left = VID[addr]
+        case 'STK': left = STK[-1]
 
     # resolve RIGHT
-    if loopInfo["adrtype"] == "DIR":
-        right = loopInfo["secAddress"]
-    elif loopInfo["adrtype"] == "MEM":
-        right = MEM[loopInfo["secAddress"]]
-    elif loopInfo["adrtype"] == "REG":
-        right = REG[loopInfo["secAddress"]]
-    elif loopInfo["adrtype"] == "VID":
-        right = VID[loopInfo["secAddress"]]
-    elif loopInfo["adrtype"] == "STK":
-        right = STK[-1]
+    match loopInfo['adrtype']:
+        case 'DIR': right = secAddr
+        case 'MEM': right = MEM[secAddr]
+        case 'REG': right = REG[secAddr]
+        case 'VID': right = VID[secAddr]
+        case 'STK': right = STK[-1]
+
 
     # evaluate condition
-    if loopInfo["operator"] == "GTR":
-        cond = left > right
-    elif loopInfo["operator"] == "LES":
-        cond = left < right
-    elif loopInfo["operator"] == "EQU":
-        cond = left == right
-    elif loopInfo["operator"] == "NEQ":
-        cond = left != right
-    else:
-        cond = False
+    match loopInfo['operator']:
+        case 'GTR': cond = left > right
+        case 'LES': cond = left < right
+        case 'EQU': cond = left == right
+        case 'NEQ': cond = left != right
+        case _    : cond = False
 
-    if not fromFin:
-        # called from WHL
-        if not cond:
-            skip_to_fin()
-            activeLoops.pop()
-        # if cond == True → do nothing, run loop body
+    return cond
 
-    else:
-        # called from FIN
-        if cond:
-            ip = loopInfo["loopIp"]
-        else:
-            activeLoops.pop()
-            # continue forward normally
 
 def skip_to_fin():
     global ip
@@ -505,13 +486,20 @@ while ip < len(code): #Running the code
 
         loopAmount += 1
         activeLoops.append(loopInfo)
-        compare(activeLoops[-1], False)
+        cond = compare(activeLoops[-1])
+        if not cond:
+            skip_to_fin()
+            activeLoops.pop()
         
     elif phrase == "FIN":
         if activeLoops:
             loopInfo = activeLoops[-1]
             #ip = loopInfo["loopIp"] #added this line to fin
-            compare(loopInfo,True)
+            cond = compare(loopInfo)
+            if cond:
+                ip = loopInfo["loopIp"]
+            else:
+                activeLoops.pop()
         else:
             # FIN outside loop — ignore or error
             pass
