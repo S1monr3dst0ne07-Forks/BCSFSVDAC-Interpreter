@@ -10,15 +10,20 @@ import sys
 
 
 def wait_for_quit():
-    print("press enter to quit")
+    clock = pygame.time.Clock()
+
+    print("Press enter to quit.")
     while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    break
+        event = pygame.event.poll()
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit(0)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                break
+
+        pygame.display.flip()
+        clock.tick(60)
 
 
 
@@ -33,14 +38,14 @@ Defaults = {
     "winSize":600,
     "DefaultFile":""
 }
-#Find config file
+
 configFile = "config.txt"
-#If no configs exist create the file
 if not os.path.exists(configFile):
     with open(configFile, "w") as f:
         for name, value in Defaults.items():
             f.write(f"{name} = {value}  # default value\n")
     print("config.txt not found, created a new one with defaults")
+
 #Load the config
 config = Defaults.copy()
 with open(configFile, "r") as f:
@@ -63,6 +68,7 @@ with open(configFile, "r") as f:
 
 for name, value in config.items():
     globals()[name] = value
+
 videoSize = width * height
 fileName = DefaultFile
 pixelSize = winSize // max(width, height)
@@ -89,18 +95,17 @@ screen = pygame.display.set_mode(
     (width * pixelSize, height * pixelSize)
 )
 pygame.display.set_caption("Video display BCSFSVDAC V1.0")
-clock = pygame.time.Clock()
 
 #variables
 MEMptr = 0
 VIDptr = 0
 REGptr = 0
+
 loopAmount = 0
 activeLoops = []
-JNZflags = 0
-isFin = False
 VersionNumber = "1.0"
 last_key = 0
+
 functions = []
 funcExecuteIp = 0
 InstructionCounter = []
@@ -109,6 +114,7 @@ InstructionCounter = []
 #functions
 VID_OLD = [0] * videoSize
 def render(): 
+    global VID_OLD
     #Renders parts of video buffer which have changed
 
     rects = []
@@ -125,6 +131,8 @@ def render():
         pygame.draw.rect(screen, colour, rect)
 
     pygame.display.update(rects)
+
+
 
 def compare(loopInfo,fromFin):
     global ip
@@ -166,7 +174,7 @@ def compare(loopInfo,fromFin):
     if not fromFin:
         # called from WHL
         if not cond:
-            skiptoFin()
+            skip_to_fin()
             activeLoops.pop()
         # if cond == True → do nothing, run loop body
 
@@ -178,7 +186,7 @@ def compare(loopInfo,fromFin):
             activeLoops.pop()
             # continue forward normally
 
-def skiptoFin():
+def skip_to_fin():
     global ip
     depth = 1  # we are already inside one WHL
 
@@ -204,10 +212,9 @@ def make_palette(size=width): #Makes the colour palette based on width
             int(b * 255)
         ))
     return palette
+
 PALETTE = make_palette(width) #Loads the palette
 def Findcolour(Num): #Finding colours of pixels
-    global PALETTE
-    global width
     if Num < 0:
         return (0, 0, 0)
     if Num >= len(PALETTE):
@@ -222,7 +229,7 @@ print("-------------- Check the readme for a simple tutorial -------------")
 print("-- Dm u/-Ryviel for complaints and suggestions for future updates -")
 print("------------------- Donation support coming soon ------------------")
 print("-------------------------------------------------------------------")
-print("\n \n \n")
+print("\n\n\n")
 
 
 
@@ -264,7 +271,27 @@ start_time = perf_counter()
 
 def error(msg):
     print(msg)
+    runtime_error()
     sys.exit(1)
+
+def runtime_error():
+    print("\n\n\n")
+    print("===============================")
+    print("=== BCSFSVDAC RUNTIME ERROR ===")
+    print("=  A FATAL ERROR HAS OCCURRED =")
+    print("Current MEMptr:", MEMptr)
+    print("MEM snapshot:", MEM[max(0, MEMptr-5):MEMptr+60])
+    print("Current REGptr:", REGptr)
+    print("REG snapshot:", REG[max(0, REGptr-5):REGptr+60])
+    print("Current STK: ", STK)
+    print("Current VIDptr:", VIDptr)
+    print("VID snapshot:", VID[max(0, VIDptr-5):VIDptr+60])
+    print("Current ip: ")
+    print("Recent code parsed: ",code[-40:])
+    print("InstructionCounter length:", len(InstructionCounter))
+    print("VM version:", VersionNumber)
+    print("================================")
+    print("\n\n\n")
 
 def check_memptr():
     if MEMptr < 0:
@@ -274,9 +301,9 @@ def check_memptr():
 
 def check_vidptr():
     if VIDptr < 0:
-        raise Exception("VIDptr exeeded minimum lim")
+        error("VIDptr exeeded minimum lim")
     if VIDptr >= videoSize:
-        raise Exception("VIDptr exeeded maximum lim")
+        error("VIDptr exeeded maximum lim")
 
 def check_stack():
     if len(STK) >= stackSize:
@@ -299,310 +326,109 @@ while ip < len(code): #Running the code
             last_key = event.key
 
     def word():
-        global ip, code
+        global ip
         p = code[ip]
         ip += 1
         return p
+
+    def number():
+        return int(word())
+
+    def address(ptr):
+        n = number()
+        return n if n >= 0 else ptr - n
+
+    def evaluate():
+        match word():
+            case x if x.isdigit():
+                return int(x)
+            case 'STK':
+                check_stack()
+                return STK[-1]
+            case 'MEM':
+                return MEM[address(MEMptr)]
+            case 'REG':
+                return REG[number(REGptr)]
+            case 'VID':
+                return VID[number(VIDptr)]
+
+
 
     phrase = word()
     if phrase == "MEM": #MEM commands
         phrase = word()
         if phrase == "PTR": #PTR command
-            character = code[ip]
-            if character.isdigit(): #Direct assignment
-                MEMptr = int(word())
-            else: #assignment through addresses
-                phrase = word()
-
-                if phrase == "MEM":
-                    character = code[ip]
-                    while ip < len(code) and code[ip].isdigit():
-                        phrase = phrase + code[ip]
-                        ip += 1
-                    phrase = int(phrase)
-                    MEMptr = int(MEM[phrase])
-                elif phrase == "REG":
-                    character = code[ip]
-                    while ip < len(code) and code[ip].isdigit():
-                        phrase = phrase + code[ip]
-                        ip += 1
-                    phrase = int(phrase)
-                    MEMptr = int(REG[phrase])
-                elif phrase == "STK":
-                    if len(STK) == 0:
-                        raise Exception("Stack underflow")
-                    MEMptr = int(STK[-1])
-                elif phrase == "VID":
-                    character = code[ip]
-                    while ip < len(code) and code[ip].isdigit():
-                        phrase = phrase + code[ip]
-                        ip += 1
-                    phrase = int(phrase)
-                    MEMptr = int(VID[phrase])
+            MEMptr = evaluate()
+            check_memptr()
                 
         elif phrase == "MOV": #Move command
-            offset = int(word())
-            MEMptr += offset
+            MEMptr += number()
             check_memptr()
 
         elif phrase == "SET": #Set command
-            phrase = code[ip]
-            if phrase.isdigit():# direct assignment
-                MEM[MEMptr] = int(phrase)
+            MEM[MEMptr] = evaluate()
 
-            else: #assignment through address
-                phrase = word()
-                if phrase == "MEM":
-                    character = code[ip]
-                    if character == "-":
-                        phrase = int(word())
-                        MEM[MEMptr] = int(MEM[int(MEMptr)-int(phrase)])
-                    else: #non relative assignment
-                        phrase = int(word())
-                        MEM[MEMptr] = MEM[phrase]
-                elif phrase == "REG": #same but for reg
-                    character = code[ip]
-                    if character == "-":
-                        phrase = int(word())
-                        MEM[MEMptr] = int(REG[int(REGptr)-int(phrase)])
-                    else:
-                        phrase = int(word())
-                        MEM[MEMptr] = REG[phrase]
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] = STK[-1]
-                elif phrase == "VID": #same but for vid
-                    character = code[ip]
-                    if character == "-":
-                        phrase = int(word())
-                        MEM[MEMptr] = int(VID[int(VIDptr)-int(phrase)])
-                    else:
-                        phrase = int(word())
-                        MEM[MEMptr] = VID[phrase]
         elif phrase == "ADD": #ADD command, All mathematical commands are virtually the same
-            if code[ip].isdigit(): #direct addition
-                MEM[MEMptr] += int(word())
-            else: #addition through address
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] += MEMTemp
-
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] += REGTemp
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] += STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(word())]
-                    MEM[MEMptr] += VIDTemp
+            MEM[MEMptr] += evaluate()
 
         elif phrase == "SUB":
-            if code[ip].isdigit():
-                MEM[MEMptr] -= int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] -= MEMTemp
-
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] -= REGTemp
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] -= STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(word())]
-                    MEM[MEMptr] -= VIDTemp
+            MEM[MEMptr] -= evaluate()
 
         elif phrase == "CLR":
             MEM[MEMptr] = 0
 
         elif phrase == "MUL":
-            if code[ip].isdigit():
-                MEM[MEMptr] *= int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] *= MEMTemp
-
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] *= REGTemp
-
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] *= STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(word())]
-                    MEM[MEMptr] *= VIDTemp
+            MEM[MEMptr] *= evaluate()
 
         elif phrase == "DIV":
-            if code[ip].isdigit():
-                MEM[MEMptr] //= int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] //= MEMTemp
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] //= REGTemp
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] //= STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(word())]
-                    MEM[MEMptr] //= VIDTemp
+            MEM[MEMptr] //= evaluate()
 
         elif phrase == "MOD":
-            if code[ip].isdigit():
-                MEM[MEMptr] %= int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] %= MEMTemp
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] %= REGTemp
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] %= STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(wordD())]
-                    MEM[MEMptr] %= VIDTemp
+            MEM[MEMptr] %= evaluate()
 
         elif phrase == "PWR":
-            if code[ip].isdigit():
-                MEM[MEMptr] **= int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    if code[ip] == "-":
-                        MEMTemp = MEM[MEMptr - int(word())]
-                    else:
-                        MEMTemp = MEM[int(word())]
-                    MEM[MEMptr] **= MEMTemp
-                elif phrase == "REG":
-                    if code[ip] == "-":
-                        REGTemp = REG[REGptr - int(word())]
-                    else:
-                        REGTemp = REG[int(word())]
-                    MEM[MEMptr] **= REGTemp
-                elif phrase == "STK":
-                    check_stack()
-                    MEM[MEMptr] **= STK[-1]
-                elif phrase == "VID":
-                    if code[ip] == "-":
-                        VIDTemp = VID[VIDptr - int(word())]
-                    else:
-                        VIDTemp = VID[int(word())]
-                    MEM[MEMptr] **= VIDTemp
+            MEM[MEMptr] **= evaluate()
 
         elif phrase == "SWP": #swap function
-            phrase = word()
-            if phrase == "MEM":
-                phrase = int(word())
-                MEMTemp = int(MEM[MEMptr]) #stores value temporarily
-                MEM[MEMptr] = int(MEM[phrase])
-                MEM[phrase] = int(MEMTemp)
+            match word():
+                case 'MEM': 
+                    other = MEM
+                    address = number()
+                case 'REG': 
+                    other = REG
+                    address = number()
+                case 'STK':
+                    other = STK
+                    address = -1
+                case 'VID':
+                    other = VID
+                    address = number()
 
-            elif phrase == "REG":
-                phrase = int(word())
-                MEMTemp = int(MEM[MEMptr])
-                MEM[MEMptr] = int(REG[phrase])
-                REG[phrase] = int(MEMTemp)
-            elif phrase == "STK":
-                phrase = int(word())
-                MEMTemp = int(MEM[MEMptr])
-                MEM[MEMptr] = int(STK[-1])
-                STK[-1] = int(MEMTemp)
-            elif phrase == "VID":
-                phrase = int(word())
-                MEMTemp = int(MEM[MEMptr])
-                MEM[MEMptr] = int(VID[phrase])
-                VID[phrase] = int(MEMTemp)
 
-        elif phrase == "JNZ":
-            if int(MEM[MEMptr]) != 0:
-                while ip < len(code):
-                    phrase = word()
-                    if phrase == "END":
-                        if JNZflags == 0: break
-                        if JNZflags != 0: JNZflags -= 1
 
-                    elif phrase == "JNZ":
-                        JNZflags += 1
-                    elif phrase == "JEZ":
-                        JNZflags += 1
+            temp = MEM[MEMptr]
+            MEM[MEMptr] = other[address]
+            other[address] = temp
 
-        elif phrase == "JEZ":
-            if int(MEM[MEMptr]) == 0:
-                while ip < len(code):
-                    phrase = word()
-                    if phrase == "END":
-                        if JNZflags == 0: break
-                        if JNZflags != 0: JNZflags -= 1
-                    elif phrase == "JNZ":
-                        JNZflags += 1
-                    elif phrase == "JEZ":
-                        JNZflags += 1
+        elif phrase == "JNZ" and int(MEM[MEMptr]) != 0:
+            depth = 0
+            while ip < len(code) and depth != 0:
+                match word():
+                    case 'END'        : depth -= 1
+                    case 'JNZ' | 'JEZ': depth += 1
+
+        elif phrase == "JEZ" and int(MEM[MEMptr]) == 0:
+            depth = 0
+            while ip < len(code) and depth != 0:
+                match word():
+                    case 'END'        : depth -= 1
+                    case 'JNZ' | 'JEZ': depth += 1
 
         elif phrase == "OUT":
             print(f"Current MEM value at {MEMptr} is {MEM[MEMptr]}")
 
         elif phrase == "INI":
-            MEMin = int(input("Enter value to save"))
-            MEM[MEMptr] = MEMin
+            MEM[MEMptr] = int(input("Enter value to save"))
 
         elif phrase == "ARY":
             # Expecting something like `ARY [1,0,2,38,1,0]`
@@ -616,129 +442,55 @@ while ip < len(code): #Running the code
         check_memptr()
 
     elif phrase == "REG":
-        REGptr = int(word())
-        phrase = word()
+        REGptr = number()
 
-        if phrase == "SET":
-            character = code[ip]
-            if character.isdigit():
-                REG[REGptr] = int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    phrase = int(word())
-                    REG[REGptr] = int(MEM[phrase])
-                elif phrase == "REG":
-                    phrase = int(word())
-                    REG[REGptr] = int(REG[phrase])
-                elif phrase == "STK":
-                    check_stack()
-                    REG[REGptr] = int(STK[-1])
-                elif phrase == "VID":
-                    phrase = int(word())
-                    REG[REGptr] = int(VID[phrase])
-        elif phrase == "CLR":
-            if code[ip].isdigit():
-                REG[int(word())] = 0
+        match word():
+            case 'SET': REG[REGptr] = evaluate()
+            case 'CLR': REG[REGptr] = 0
 
     elif phrase == "STK":
-        phrase = word()
-        if phrase == "PSH":
-            if code[ip].isdigit():
-                STK.append(int(word()))
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    phrase = int(word())
-                    STK.append(int(MEM[phrase]))
-                    check_stack()
-                elif phrase == "REG":
-                    phrase = int(word())
-                    STK.append(int(REG[phrase]))
-                    check_stack()
-                elif phrase == "VID":
-                    phrase = int(word())
-                    check_stack()
-                    STK.append(int(VID[phrase]))
+        match word():
+            case 'PSH': STK.append(evaluate())
+            case 'POP': STK.pop()
+            case 'CLR': STK.clear()
 
-        elif phrase == "POP":
-            check_stack()
-            STK.pop()
-        elif phrase == "CLR":
-            STK.clear()
+        check_stack()
 
     elif phrase == "VID":
-        phrase = word()
-        if phrase == "PTR":
-            if code[ip].isdigit():
-                VIDptr = int(word())
-                check_vidptr()
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    phrase = int(word())
-                    VIDptr = int(MEM[phrase])
-                elif phrase == "REG":
-                    phrase = int(word())
-                    VIDptr = int(REG[phrase])
-                elif phrase == "STK":
-                    check_stack()
-                    VIDptr = int(STK[-1])
-                elif phrase == "VID":
-                    phrase = int(word())
-                    VIDptr = int(VID[phrase])
+        check_vidptr()
+        match word():
+            case 'PTR': VIDptr = evaluate()
+            case 'MOV': VIDptr += number()
+            case 'SET': VID[VIDptr] = evaluate()
+            case 'CLR':
+                for i in range(videoSize):
+                    VID[i] = 0
+            case 'ARY':
+                # Expecting something like `ARY [1,0,2,38,1,0]`
+                content = word().strip('[]')
 
-        elif phrase == "MOV":
-            VIDptr += int(word())
-            check_vidptr()
+                for value in map(int, content.split(',')):
+                    VID[VIDptr] = value
+                    VIDptr += 1
 
-        elif phrase == "SET":
-            if code[ip].isdigit():
-                VID[VIDptr] = int(word())
-            else:
-                phrase = word()
-                if phrase == "MEM":
-                    phrase = int(word())
-                    VID[VIDptr] = int(MEM[phrase])
-                elif phrase == "REG":
-                    phrase = int(word())
-                    VID[VIDptr] = int(REG[phrase])
-                elif phrase == "STK":
-                    check_stack()
-                    VID[VIDptr] = int(STK[-1])
-                elif phrase == "VID":
-                    phrase = int(word())
-                    VID[VIDptr] = int(VID[phrase])
-
-        elif phrase == "CLR":
-            for i in range(videoSize):
-                VID[i] = 0
-
-        elif phrase == "ARY":
-            # Expecting something like `ARY [1,0,2,38,1,0]`
-            content = word().strip('[]')
-
-            for value in map(int, content.split(',')):
-                check_vidptr()
-                VID[VIDptr] = value
-                VIDptr += 1
 
     elif phrase == "WHL":
         # FUCK NESTED LOOPS
 
         source = word() #collects info about loop
         if source in ('MEM', 'REG', 'VID'):
-            address = int(word())
+            address = number()
         elif source == "STK":
             address = int(-1)
 
         operator = word()
+
         if code[ip].isdigit():
             adrtype = "DIR"
-            secAddress = int(word())
         else:
             adrtype = word()
-            secAddress = int(word())
+
+        secAddress = number()
 
         loopIp = ip
         loopInfo = { #compiles info about loop
@@ -765,22 +517,17 @@ while ip < len(code): #Running the code
             pass
 
     elif phrase == "FRZ":
-        phrase = int(word())
-        sleep(phrase/1000)
+        sleep(number()/1000)
 
     elif phrase == "REN":
         render()
 
     elif phrase == "KEY":
-        phrase = word()
-        if phrase == "MEM":
-            MEM[int(word())] = last_key
-        elif phrase == "REG":
-            REG[int(word())] = last_key
-        elif phrase == "STK":
-            STK[-1] = last_key
-        elif phrase == "VID":
-            VID[int(word())] = last_key
+        match word():
+            case 'MEM': MEM[number()] = last_key
+            case 'REG': REG[number()] = last_key
+            case 'STK': STK[-1]       = last_key
+            case 'VID': VID[number()] = last_key
         last_key = 0
 
     """commented out for now, as no example exist to test 
@@ -850,51 +597,15 @@ while ip < len(code): #Running the code
 end_time = perf_counter()
 elapsed = end_time - start_time
 milliseconds = elapsed * 1000
-print("Execution took ",milliseconds,"ms")
-waiting = True
-print("press enter to quit")
-while waiting:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_RETURN:
-                waiting = False 
-
-    pygame.display.flip()
-    clock.tick(60)
-
-
-def runtime_error():
-    print("\n \n \n")
-    print("===============================")
-    print("=== BCSFSVDAC RUNTIME ERROR ===")
-    print("=  A FATAL ERROR HAS OCCURRED =")
-    print("Current MEMptr:", MEMptr)
-    print("MEM snapshot:", MEM[max(0, MEMptr-5):MEMptr+60])
-    print("Current REGptr:", REGptr)
-    print("REG snapshot:", REG[max(0, REGptr-5):REGptr+60])
-    print("Current STK: ", STK)
-    print("Current VIDptr:", VIDptr)
-    print("VID snapshot:", VID[max(0, VIDptr-5):VIDptr+60])
-    print("Current ip: ")
-    print("Recent code parsed: ",code[-40:])
-    print("Current phrase:", phrase)
-    print("InstructionCounter length:", len(InstructionCounter))
-    print("VM version:", VersionNumber)
-    print("Error message:", e)
-    print("================================")
-    print("\n \n \n")
-    raise Exception("An error has occurred")
+print(f"Execution took {milliseconds}ms")
+wait_for_quit()
     
 pygame.quit()
 print("Done")
-print("Ending pointer value: ",MEM[MEMptr])
-print("Ending pointer: ",MEMptr)
-print("Ending memory: ",MEM)
+#print("Ending pointer value: ",MEM[MEMptr])
+#print("Ending pointer: ",MEMptr)
+#print("Ending memory: ",MEM)
 #print("Ending VID: ", VID)
 
 
-wait_for_quit()
 
