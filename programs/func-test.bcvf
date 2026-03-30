@@ -1,0 +1,11 @@
+
+
+DEF [test]
+    VID PTR 0
+    VID SET 10
+    REN
+RET
+
+
+FNC [test]
+
