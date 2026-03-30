@@ -49,22 +49,14 @@ if not os.path.exists(configFile):
 #Load the config
 config = Defaults.copy()
 with open(configFile, "r") as f:
-    for line in f:
-        line = line.strip()
+    for line in map(str.strip, f.read().split('\n')):
         if not line or line.startswith("#"):
             continue
         if "#" in line:
             line = line.split("#", 1)[0].strip()
         if "=" in line:
-            name, value = line.split("=", 1)
-            name = name.strip()
-            value = value.strip()
-            # check if value is a number
-            if value.isdigit():
-                config[name] = int(value)
-            else:
-                # keep as string
-                config[name] = value
+            name, value = map(str.strip, line.split("=", 1))
+            config[name] = int(value) if value.isdigit() else value
 
 for name, value in config.items():
     globals()[name] = value
