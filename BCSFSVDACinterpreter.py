@@ -101,8 +101,8 @@ MEMptr = 0
 VIDptr = 0
 REGptr = 0
 
-loopAmount = 0
-activeLoops = []
+loop_addrs = []
+
 VersionNumber = "1.0"
 last_key = 0
 
@@ -131,40 +131,6 @@ def render():
         pygame.draw.rect(screen, colour, rect)
 
     pygame.display.update(rects)
-
-
-
-def compare(loopInfo):
-    global ip
-
-    addr    = loopInfo['address']
-    secAddr = loopInfo['secAddress']
-
-    # resolve LEFT
-    match loopInfo['source']:
-        case 'MEM': left = MEM[addr]
-        case 'REG': left = REG[addr]
-        case 'VID': left = VID[addr]
-        case 'STK': left = STK[-1]
-
-    # resolve RIGHT
-    match loopInfo['adrtype']:
-        case 'DIR': right = secAddr
-        case 'MEM': right = MEM[secAddr]
-        case 'REG': right = REG[secAddr]
-        case 'VID': right = VID[secAddr]
-        case 'STK': right = STK[-1]
-
-
-    # evaluate condition
-    match loopInfo['operator']:
-        case 'GTR': cond = left > right
-        case 'LES': cond = left < right
-        case 'EQU': cond = left == right
-        case 'NEQ': cond = left != right
-        case _    : cond = False
-
-    return cond
 
 
 def skip_to_fin():
@@ -329,12 +295,13 @@ while ip < len(code): #Running the code
             case 'MEM':
                 return MEM[address(MEMptr)]
             case 'REG':
-                return REG[number(REGptr)]
+                return REG[address(REGptr)]
             case 'VID':
-                return VID[number(VIDptr)]
+                return VID[address(VIDptr)]
 
 
 
+    last_ip = ip
     phrase = word()
     if phrase == "MEM": #MEM commands
         phrase = word()
@@ -456,53 +423,39 @@ while ip < len(code): #Running the code
 
 
     elif phrase == "WHL":
-        # FUCK NESTED LOOPS
+        # "FUCK NESTED LOOPS" - queensnail3706
+        # "BE NOT AFRAID" - S1monr3dst0ne07
 
-        source = word() #collects info about loop
-        if source in ('MEM', 'REG', 'VID'):
-            address = number()
-        elif source == "STK":
-            address = int(-1)
+        # the loop condition is evaluated at the start of the loop.
+        # then the end jumps back to the start which makes
+        # the condition checks re-execute.
 
+        lhs = evaluate()
         operator = word()
+        rhs = evaluate()
 
-        if code[ip].isdigit():
-            adrtype = "DIR"
-        else:
-            adrtype = word()
+        match operator:
+            case 'GTR': cond = lhs > rhs
+            case 'LES': cond = lhs < rhs
+            case 'EQU': cond = lhs == rhs
+            case 'NEQ': cond = lhs != rhs
+            case _    : cond = False
 
-        secAddress = number()
-
-        loopIp = ip
-        loopInfo = { #compiles info about loop
-            "loopIp":loopIp,
-            "source":source,
-            "address":address,
-            "operator":operator,
-            "adrtype":adrtype,
-            "secAddress":secAddress,
-            "loopAmount":loopAmount
-        }
-
-        loopAmount += 1
-        activeLoops.append(loopInfo)
-        cond = compare(activeLoops[-1])
-        if not cond:
+        if not cond: 
             skip_to_fin()
-            activeLoops.pop()
+
+        else:
+            # place the address of the current instruction
+            # onto the loop stack, such that the condition
+            # checks will re-execute.
+            loop_addrs.append(last_ip)
         
     elif phrase == "FIN":
-        if activeLoops:
-            loopInfo = activeLoops[-1]
-            #ip = loopInfo["loopIp"] #added this line to fin
-            cond = compare(loopInfo)
-            if cond:
-                ip = loopInfo["loopIp"]
-            else:
-                activeLoops.pop()
-        else:
-            # FIN outside loop — ignore or error
-            pass
+        if not loop_addrs:
+            error("Error: `FIN` outside of loop.")
+
+        # *boom* see how simple that is?
+        ip = loop_addrs.pop()
 
     elif phrase == "FRZ":
         sleep(number()/1000)
